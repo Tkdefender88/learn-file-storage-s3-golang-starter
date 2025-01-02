@@ -1,8 +1,11 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
@@ -28,10 +31,61 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-
 	fmt.Println("uploading thumbnail for video", videoID, "by user", userID)
 
-	// TODO: implement the upload here
+	const maxMemory = 10 << 20
+	err = r.ParseMultipartForm(maxMemory)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not parse file", err)
+		return
+	}
 
-	respondWithJSON(w, http.StatusOK, struct{}{})
+	file, header, err := r.FormFile("thumbnail")
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Could not get file from request", err)
+		return
+	}
+
+	defer file.Close()
+
+	mediaType := header.Header.Get("Content-Type")
+
+	video, err := cfg.db.GetVideo(videoID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			respondWithError(w, http.StatusNotFound, "Could not find video", err)
+			return
+		}
+		respondWithError(w, http.StatusInternalServerError, "Error getting the video", err)
+		return
+	}
+
+	if video.UserID != userID {
+		respondWithError(w, http.StatusUnauthorized, "This is not your video", fmt.Errorf("Not your video"))
+	}
+
+	assetPath := getAssetPath(videoID, mediaType)
+
+	assetFile, err := os.Create(cfg.getAssetDiskPath(assetPath))
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not save thumbnail to file", err)
+		return
+	}
+
+	_, err = io.Copy(assetFile, file)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not write thumbnail to file", err)
+		return
+	}
+
+	thumbUrl := cfg.getAssetUrl(assetPath)
+	video.ThumbnailURL = &thumbUrl
+
+	err = cfg.db.UpdateVideo(video)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Could not save video", err)
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, video)
 }

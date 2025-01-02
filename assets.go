@@ -27,6 +27,10 @@ func getAssetPath(mediaType string) (string, error) {
 	return fmt.Sprintf("%s%s", id, ext), nil
 }
 
+func (cfg apiConfig) getObjectUrl(assetPath string) string {
+	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, assetPath)
+}
+
 func (cfg apiConfig) getAssetDiskPath(assetPath string) string {
 	return filepath.Join(cfg.assetsRoot, assetPath)
 }

@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
+	"math/rand"
+	"mime"
 	"os"
-	"strings"
 )
 
 func (cfg apiConfig) ensureAssetsDir() error {
@@ -17,10 +20,23 @@ func (cfg apiConfig) getAssetURL(fileName string) string {
 	return fmt.Sprintf("http://localhost:%s/assets/%s", cfg.port, fileName)
 }
 
-func mediaTypeToExt(mediaType string) string {
-	parts := strings.Split(mediaType, "/")
-	if len(parts) != 2 {
-		return ".bin"
+func getThumbnailName(mediaExt string) string {
+	b := [32]byte{}
+	rand.Read(b[:])
+	return fmt.Sprintf("%s%s", base64.RawURLEncoding.EncodeToString(b[:]), mediaExt)
+}
+
+func mediaTypeToExt(mediaType string) (string, error) {
+	t, _, err := mime.ParseMediaType(mediaType)
+	if err != nil {
+		return "", err
 	}
-	return "." + parts[1]
+	switch t {
+	case "image/jpeg":
+		return ".jpg", nil
+	case "image/png":
+		return ".png", nil
+	default:
+		return "", errors.New("unsupported media type")
+	}
 }

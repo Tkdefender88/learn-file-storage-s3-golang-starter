@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -47,9 +46,13 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	extension := mediaTypeToExt(mediaType)
+	extension, err := mediaTypeToExt(mediaType)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Unsupported media type", err)
+		return
+	}
 
-	fileName := fmt.Sprintf("%s%s", videoIDString, extension)
+	fileName := getThumbnailName(extension)
 	fno, err := os.OpenFile(filepath.Join(cfg.assetsRoot, fileName), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create file", err)
